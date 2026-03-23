@@ -13,8 +13,8 @@ import requests
 import yfinance as yf
 from datetime import datetime
 
-try:
-    from anthropic import Anthropic
+try:import anthropic
+client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
 except ImportError:
     os.system("pip install anthropic")
     from anthropic import Anthropic
@@ -27,7 +27,6 @@ CHAT_ID        = "8654742500"
 ANTHROPIC_KEY  = "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"
 # ============================================================
 
-client = Anthropic(api_key=ANTHROPIC_KEY)
 
 PORTFOLIO = {
     "TTE.PA":  {"name": "TotalEnergies", "parts": 233, "entry": 72.70, "stop": 75.95, "target": 85.00, "currency": "€"},
