@@ -1,0 +1,5 @@
+anthropic==0.25.0
+yfinance==0.2.38
+requests==2.31.0
+schedule==1.2.1
+python-telegram-bot==13.15
