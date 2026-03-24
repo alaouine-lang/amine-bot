@@ -90,7 +90,19 @@ def analyze_with_gemini(prompt):
         }
         r = requests.post(url, headers=headers, params=params, json=body, timeout=30)
         data = r.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        # Debug: log full response if unexpected
+        if "candidates" not in data:
+            print("Gemini response: {}".format(data))
+            error_msg = data.get("error", {}).get("message", str(data))
+            return "Erreur Gemini API: {}".format(error_msg)
+        candidates = data["candidates"]
+        if not candidates:
+            return "Gemini: reponse vide"
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+        if not parts:
+            return "Gemini: pas de contenu"
+        return parts[0].get("text", "Gemini: texte manquant")
     except Exception as e:
         return "Erreur Gemini: {}".format(str(e))
 
