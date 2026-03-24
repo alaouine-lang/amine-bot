@@ -5,13 +5,10 @@ import threading
 import requests
 import yfinance as yf
 from datetime import datetime
-import anthropic
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8688782085:AAFKvXMCClaeKBt-Yd4paRQJi6YBIH0GUxY")
 CHAT_ID = os.environ.get("CHAT_ID", "8654742500")
-ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY", "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")
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+GEMINI_KEY = os.environ.get("GEMINI_KEY", "")
 
 PORTFOLIO = {
     "TTE.PA":  {"name": "TotalEnergies", "parts": 233, "entry": 72.70, "stop": 75.95, "target": 85.00, "currency": "EUR"},
@@ -23,7 +20,6 @@ PORTFOLIO = {
 }
 
 EVENTS = [
-    {"date": "24/03/2026", "label": "AGO Attijariwafa BVC",    "action": "Vendre 50% ATW si +8%"},
     {"date": "26/03/2026", "label": "AGO IAM Maroc Telecom",   "action": "Dividende IAM"},
     {"date": "29/04/2026", "label": "Resultats TotalEnergies", "action": "Vendre 1/3 TTE a l annonce"},
     {"date": "30/04/2026", "label": "FOMC Decision taux",      "action": "Adapter selon decision Fed"},
@@ -81,37 +77,52 @@ def get_days_until(date_str):
     d, m, y = date_str.split("/")
     return (datetime(int(y), int(m), int(d)) - datetime.now()).days
 
+def analyze_with_gemini(prompt):
+    if not GEMINI_KEY:
+        return "Clé Gemini manquante — ajoute GEMINI_KEY dans Railway Variables"
+    try:
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        headers = {"Content-Type": "application/json"}
+        params = {"key": GEMINI_KEY}
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"maxOutputTokens": 600, "temperature": 0.7}
+        }
+        r = requests.post(url, headers=headers, params=params, json=body, timeout=30)
+        data = r.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        return "Erreur Gemini: {}".format(str(e))
+
 def format_portfolio(prices, brent):
-    lines = ["PORTEFEUILLE AMINE\n"]
+    lines = ["\U0001f4ca <b>PORTEFEUILLE AMINE</b>\n"]
     if brent:
         pct = round(((brent - 72.48) / 72.48) * 100, 1)
-        lines.append("Brent: <b>$" + str(brent) + "</b> (" + str(pct) + "% depuis guerre)\n")
+        lines.append("\U0001f6e2\ufe0f Brent: <b>$" + str(brent) + "</b> (" + str(pct) + "% depuis guerre)\n")
     lines.append("-----------------")
     for ticker, info in PORTFOLIO.items():
         pd = prices.get(ticker, {})
         price = pd.get("price")
         change = pd.get("change")
         pos = PORTFOLIO[ticker]
-        sym = "EUR" if info["currency"] == "EUR" else "USD"
-        sign = "E" if sym == "EUR" else "$"
+        sign = "\u20ac" if info["currency"] == "EUR" else "$"
         if price:
             pnl = round((price - pos["entry"]) * pos["parts"], 0)
             dist_stop = round(((price - pos["stop"]) / price) * 100, 1)
-            emoji = "verde" if pnl > 0 else "rouge"
-            alert = "URGENT " if abs(dist_stop) < 2 else ("ATTENTION " if abs(dist_stop) < 5 else "")
+            dist_tgt = round(((pos["target"] - price) / price) * 100, 1)
             green = "\U0001f7e2" if pnl > 0 else "\U0001f534"
             warn = "\U0001f6a8" if abs(dist_stop) < 2 else ("\u26a0\ufe0f" if abs(dist_stop) < 5 else "")
-            ch_str = str(change) if change is not None else "N/A"
+            ch_str = ("+" if change and change > 0 else "") + str(change) + "%" if change is not None else "N/A"
             lines.append(
                 green + warn + " <b>" + info["name"] + "</b>\n"
-                "   " + str(price) + sign + " (" + ch_str + "%) | P&L: " + str(pnl) + sign + "\n"
-                "   Stop: " + str(pos["stop"]) + sign + " (" + str(dist_stop) + "%) | Target: " + str(pos["target"]) + sign
+                "   " + str(price) + sign + " (" + ch_str + ") | P&L: " + ("+" if pnl > 0 else "") + str(pnl) + sign + "\n"
+                "   Stop: " + str(pos["stop"]) + sign + " | Target: " + str(pos["target"]) + sign + " (" + str(dist_tgt) + "%)"
             )
         else:
-            lines.append("\u26aa <b>" + info["name"] + "</b> - cours indisponible")
+            lines.append("\u26aa <b>" + info["name"] + "</b> - marche ferme")
     return "\n".join(lines)
 
-def analyze(prices, brent, news, mode="morning"):
+def build_prompt(prices, brent, news, mode):
     pos_lines = []
     alerts = []
     for ticker, info in PORTFOLIO.items():
@@ -122,10 +133,7 @@ def analyze(prices, brent, news, mode="morning"):
             pnl = round((price - pos["entry"]) * pos["parts"], 0)
             dist_stop = round(((price - pos["stop"]) / price) * 100, 1)
             dist_tgt = round(((pos["target"] - price) / price) * 100, 1)
-            pos_lines.append(
-                info["name"] + ": " + str(price) + " | P&L:" + str(pnl) +
-                " | Stop:" + str(dist_stop) + "% | Target:" + str(dist_tgt) + "%"
-            )
+            pos_lines.append(info["name"] + ": " + str(price) + " P&L:" + str(pnl) + " Stop:" + str(dist_stop) + "% Target:" + str(dist_tgt) + "%")
             if abs(dist_stop) < 2:
                 alerts.append("URGENT " + info["name"] + " a " + str(abs(dist_stop)) + "% du STOP!")
             if dist_tgt < 2:
@@ -137,62 +145,29 @@ def analyze(prices, brent, news, mode="morning"):
         if 0 <= d <= 7:
             upcoming.append("J-" + str(d) + ": " + e["label"] + " -> " + e["action"])
 
-    pos_text = "\n".join(pos_lines) if pos_lines else "Cours indisponibles (marche ferme)"
-    alerts_text = "\n".join(alerts) if alerts else "Aucune"
-    events_text = "\n".join(upcoming) if upcoming else "Aucun dans 7 jours"
-    news_text = "\n".join(news[:4]) if news else "Indisponibles"
     brent_str = str(brent) if brent else "N/A"
+    pos_text = "\n".join(pos_lines) if pos_lines else "Marche ferme"
+    alerts_text = "\n".join(alerts) if alerts else "Aucune"
+    events_text = "\n".join(upcoming) if upcoming else "Aucun"
+    news_text = "\n".join(news[:4]) if news else "Indisponibles"
+
+    context = (
+        "Tu es l analyste d Amine Chaoui (130K EUR IBKR Europe). "
+        "Contexte: Guerre Iran J+25, deal possible Trump/Iran, Brent " + brent_str + "$.\n\n"
+        "POSITIONS:\n" + pos_text + "\n\n"
+        "NEWS:\n" + news_text + "\n\n"
+        "ALERTES: " + alerts_text + "\n"
+        "EVENEMENTS: " + events_text + "\n\n"
+    )
 
     if mode == "morning":
-        prompt = (
-            "Tu es l analyste d Amine Chaoui (130K EUR IBKR). Guerre Iran J+23, Brent " + brent_str + "$.\n\n"
-            "POSITIONS:\n" + pos_text + "\n\n"
-            "NEWS:\n" + news_text + "\n\n"
-            "ALERTES: " + alerts_text + "\n"
-            "EVENEMENTS SEMAINE: " + events_text + "\n\n"
-            "Briefing matin en francais avec emojis (max 250 mots):\n"
-            "1. Score portefeuille /10\n"
-            "2. Macro en 2 lignes\n"
-            "3. Top 3 actions concretes aujourd hui\n"
-            "4. Risque principal\n"
-            "5. Opportunite du jour"
-        )
+        return context + "Briefing matin en francais avec emojis (max 250 mots): 1-Score /10 2-Macro 2 lignes 3-Top 3 actions 4-Risque 5-Opportunite"
     elif mode == "evening":
-        prompt = (
-            "Bilan fin de journee pour Amine.\n"
-            "POSITIONS: " + pos_text + "\n"
-            "NEWS: " + news_text + "\n"
-            "ALERTES: " + alerts_text + "\n\n"
-            "Bilan en francais (max 200 mots):\n"
-            "1. Performance du jour\n"
-            "2. Ce qui a bien/mal marche\n"
-            "3. Plan pour demain\n"
-            "4. Ordres a preparer"
-        )
+        return context + "Bilan soir en francais (max 200 mots): 1-Performance 2-Bien/mal 3-Plan demain 4-Ordres a preparer"
     elif mode == "alert":
-        prompt = (
-            "ALERTE URGENTE portefeuille Amine!\n"
-            "ALERTES: " + alerts_text + "\n"
-            "BRENT: " + brent_str + "$\n"
-            "POSITIONS: " + pos_text + "\n\n"
-            "3 lignes max: Que s est-il passe? Risque? Action MAINTENANT?"
-        )
+        return context + "ALERTE URGENTE - 3 lignes max: Que s est-il passe? Risque? Action MAINTENANT?"
     else:
-        prompt = (
-            "Scan geopolitique Iran pour Amine.\n"
-            "BRENT: " + brent_str + "$ | NEWS: " + news_text + "\n\n"
-            "5 points: 1-Hormuz maintenant 2-Impact Brent 3-Signal TTE 4-Signal SHELL 5-Signal INSW"
-        )
-
-    try:
-        r = client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=600,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return r.content[0].text
-    except Exception as e:
-        return "Erreur IA: " + str(e)
+        return context + "Scan geopolitique Iran 5 points: 1-Hormuz 2-Brent direction 3-Signal SHELL 4-Signal INSW 5-Deal possible?"
 
 def check_alerts():
     prices = get_prices()
@@ -210,8 +185,9 @@ def check_alerts():
                 alerts.append("\U0001f3af " + info["name"] + ": TARGET a " + str(dist_tgt) + "%!")
     if alerts:
         news = get_iran_news()
-        a = analyze(prices, brent, news, "alert")
-        send_telegram("\u26a1 <b>ALERTE</b>\n\n" + "\n".join(alerts) + "\n\n" + a)
+        prompt = build_prompt(prices, brent, news, "alert")
+        analysis = analyze_with_gemini(prompt)
+        send_telegram("\u26a1 <b>ALERTE</b>\n\n" + "\n".join(alerts) + "\n\n" + analysis)
 
 def morning():
     prices = get_prices()
@@ -219,7 +195,8 @@ def morning():
     news = get_iran_news()
     send_telegram(format_portfolio(prices, brent))
     time.sleep(2)
-    send_telegram("\U0001f305 <b>BRIEFING MATIN</b>\n\n" + analyze(prices, brent, news, "morning"))
+    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "morning"))
+    send_telegram("\U0001f305 <b>BRIEFING MATIN</b>\n\n" + analysis)
 
 def evening():
     prices = get_prices()
@@ -227,13 +204,15 @@ def evening():
     news = get_iran_news()
     send_telegram(format_portfolio(prices, brent))
     time.sleep(2)
-    send_telegram("\U0001f306 <b>BILAN SOIR</b>\n\n" + analyze(prices, brent, news, "evening"))
+    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "evening"))
+    send_telegram("\U0001f306 <b>BILAN SOIR</b>\n\n" + analysis)
 
 def night_iran():
     prices = get_prices()
     brent = get_brent()
     news = get_iran_news()
-    send_telegram("\U0001f319 <b>SCAN IRAN 22H</b>\n\n" + analyze(prices, brent, news, "iran"))
+    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "iran"))
+    send_telegram("\U0001f319 <b>SCAN IRAN 22H</b>\n\n" + analysis)
 
 def handle_commands():
     offset = 0
@@ -250,16 +229,22 @@ def handle_commands():
                     continue
                 prices = get_prices()
                 brent = get_brent()
+
                 if text in ["/check", "check"]:
                     send_telegram(format_portfolio(prices, brent))
+
                 elif text in ["/scan", "scan"]:
                     send_telegram("\U0001f50d Analyse en cours...")
                     news = get_iran_news()
-                    send_telegram("\u26a1 <b>SCAN COMPLET</b>\n\n" + analyze(prices, brent, news, "morning"))
+                    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "morning"))
+                    send_telegram("\u26a1 <b>SCAN COMPLET</b>\n\n" + analysis)
+
                 elif text in ["/iran", "iran"]:
                     send_telegram("\U0001f30d Scan Iran...")
                     news = get_iran_news()
-                    send_telegram("\U0001f30d <b>SCAN IRAN</b>\n\n" + analyze(prices, brent, news, "iran"))
+                    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "iran"))
+                    send_telegram("\U0001f30d <b>SCAN IRAN</b>\n\n" + analysis)
+
                 elif text in ["/agenda", "agenda"]:
                     lines = ["\U0001f4c5 <b>AGENDA CATALYSEURS</b>\n"]
                     for e in EVENTS:
@@ -268,17 +253,14 @@ def handle_commands():
                             em = "\U0001f534" if d <= 2 else ("\U0001f7e1" if d <= 7 else "\u26aa")
                             lines.append(em + " J-" + str(d) + " | <b>" + e["label"] + "</b>\n   -> " + e["action"])
                     send_telegram("\n".join(lines))
+
                 elif text in ["/brent", "brent"]:
                     if brent:
                         pct = round(((brent - 72.48) / 72.48) * 100, 1)
-                        send_telegram(
-                            "\U0001f6e2\ufe0f <b>BRENT</b>\n\n"
-                            "Prix: <b>$" + str(brent) + "</b>\n"
-                            "Depuis guerre: <b>" + str(pct) + "%</b>\n"
-                            "Pre-guerre: $72.48"
-                        )
+                        send_telegram("\U0001f6e2\ufe0f <b>BRENT</b>\n\nPrix: <b>$" + str(brent) + "</b>\nDepuis guerre: <b>" + str(pct) + "%</b>\nPre-guerre: $72.48")
                     else:
                         send_telegram("\U0001f6e2\ufe0f Brent indisponible (marche ferme)")
+
                 elif text in ["/help", "help", "/start", "start"]:
                     send_telegram(
                         "\U0001f916 <b>AMINE INTEL BOT</b>\n\n"
@@ -290,21 +272,22 @@ def handle_commands():
                         "/brent - Prix Brent live\n"
                         "/help - Cette aide\n\n"
                         "\u23f0 Briefings auto: 9h15, 17h30, 22h00\n"
-                        "\U0001f514 Alertes stops: toutes les 30min"
+                        "\U0001f514 Alertes stops: toutes les 30min\n"
+                        "\U0001f916 IA: Google Gemini (gratuit)"
                     )
         except Exception as e:
             print("Erreur cmd: {}".format(e))
             time.sleep(5)
 
 def main():
-    print("AMINE INTEL BOT - Demarrage")
+    print("AMINE INTEL BOT (Gemini) - Demarrage")
     send_telegram(
-        "\U0001f916 <b>AMINE INTEL BOT ACTIVE</b>\n\n"
-        "\u2705 Surveillance active\n"
+        "\U0001f916 <b>AMINE INTEL BOT - GEMINI</b>\n\n"
+        "\u2705 IA: Google Gemini gratuit\n"
         "\u23f0 Briefings: 9h15, 17h30, 22h00\n"
-        "\U0001f514 Alertes stops: toutes les 30min\n\n"
+        "\U0001f514 Alertes: toutes les 30min\n\n"
         "Tape /help pour les commandes\n"
-        "Tape /check pour tes positions"
+        "Tape /scan pour tester l IA"
     )
     schedule.every().day.at("09:15").do(morning)
     schedule.every().day.at("17:30").do(evening)
@@ -312,7 +295,7 @@ def main():
     schedule.every(30).minutes.do(check_alerts)
     t = threading.Thread(target=handle_commands, daemon=True)
     t.start()
-    print("Bot actif - en attente...")
+    print("Bot actif avec Gemini...")
     while True:
         schedule.run_pending()
         time.sleep(60)
