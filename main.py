@@ -8,7 +8,7 @@ from datetime import datetime
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8688782085:AAFKvXMCClaeKBt-Yd4paRQJi6YBIH0GUxY")
 CHAT_ID = os.environ.get("CHAT_ID", "8654742500")
-GEMINI_KEY = os.environ.get("GEMINI_KEY", "")
+GROQ_KEY = os.environ.get("GROQ_KEY", "")
 
 PORTFOLIO = {
     "TTE.PA":  {"name": "TotalEnergies", "parts": 233, "entry": 72.70, "stop": 75.95, "target": 85.00, "currency": "EUR"},
@@ -77,13 +77,13 @@ def get_days_until(date_str):
     d, m, y = date_str.split("/")
     return (datetime(int(y), int(m), int(d)) - datetime.now()).days
 
-def analyze_with_gemini(prompt):
-    if not GEMINI_KEY:
-        return "Clé Gemini manquante — ajoute GEMINI_KEY dans Railway Variables"
+def analyze_with_groq(prompt):
+    if not GROQ_KEY:
+        return "Clé Gemini manquante — ajoute GROQ_KEY dans Railway Variables"
     try:
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         headers = {"Content-Type": "application/json"}
-        params = {"key": GEMINI_KEY}
+        params = {"key": GROQ_KEY}
         body = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"maxOutputTokens": 600, "temperature": 0.7}
@@ -198,7 +198,7 @@ def check_alerts():
     if alerts:
         news = get_iran_news()
         prompt = build_prompt(prices, brent, news, "alert")
-        analysis = analyze_with_gemini(prompt)
+        analysis = analyze_with_groq(prompt)
         send_telegram("\u26a1 <b>ALERTE</b>\n\n" + "\n".join(alerts) + "\n\n" + analysis)
 
 def morning():
@@ -207,7 +207,7 @@ def morning():
     news = get_iran_news()
     send_telegram(format_portfolio(prices, brent))
     time.sleep(2)
-    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "morning"))
+    analysis = analyze_with_groq(build_prompt(prices, brent, news, "morning"))
     send_telegram("\U0001f305 <b>BRIEFING MATIN</b>\n\n" + analysis)
 
 def evening():
@@ -216,14 +216,14 @@ def evening():
     news = get_iran_news()
     send_telegram(format_portfolio(prices, brent))
     time.sleep(2)
-    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "evening"))
+    analysis = analyze_with_groq(build_prompt(prices, brent, news, "evening"))
     send_telegram("\U0001f306 <b>BILAN SOIR</b>\n\n" + analysis)
 
 def night_iran():
     prices = get_prices()
     brent = get_brent()
     news = get_iran_news()
-    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "iran"))
+    analysis = analyze_with_groq(build_prompt(prices, brent, news, "iran"))
     send_telegram("\U0001f319 <b>SCAN IRAN 22H</b>\n\n" + analysis)
 
 def handle_commands():
@@ -248,13 +248,13 @@ def handle_commands():
                 elif text in ["/scan", "scan"]:
                     send_telegram("\U0001f50d Analyse en cours...")
                     news = get_iran_news()
-                    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "morning"))
+                    analysis = analyze_with_groq(build_prompt(prices, brent, news, "morning"))
                     send_telegram("\u26a1 <b>SCAN COMPLET</b>\n\n" + analysis)
 
                 elif text in ["/iran", "iran"]:
                     send_telegram("\U0001f30d Scan Iran...")
                     news = get_iran_news()
-                    analysis = analyze_with_gemini(build_prompt(prices, brent, news, "iran"))
+                    analysis = analyze_with_groq(build_prompt(prices, brent, news, "iran"))
                     send_telegram("\U0001f30d <b>SCAN IRAN</b>\n\n" + analysis)
 
                 elif text in ["/agenda", "agenda"]:
@@ -292,9 +292,9 @@ def handle_commands():
             time.sleep(5)
 
 def main():
-    print("AMINE INTEL BOT (Gemini) - Demarrage")
+    print("AMINE INTEL BOT (Groq) - Demarrage")
     send_telegram(
-        "\U0001f916 <b>AMINE INTEL BOT - GEMINI</b>\n\n"
+        "\U0001f916 <b>AMINE INTEL BOT - GROQ</b>\n\n"
         "\u2705 IA: Google Gemini gratuit\n"
         "\u23f0 Briefings: 9h15, 17h30, 22h00\n"
         "\U0001f514 Alertes: toutes les 30min\n\n"
