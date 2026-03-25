@@ -79,9 +79,9 @@ def get_days_until(date_str):
 
 def analyze_with_groq(prompt):
     if not GROQ_KEY:
-        return "Clé Gemini manquante — ajoute GROQ_KEY dans Railway Variables"
+        return "Clé Groq manquante — ajoute GROQ_KEY dans Railway Variables"
     try:
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+        url = "https://generativelanguage.googleapis.com/v1beta/models/groq-2.0-flash:generateContent"
         headers = {"Content-Type": "application/json"}
         params = {"key": GROQ_KEY}
         body = {
@@ -92,19 +92,19 @@ def analyze_with_groq(prompt):
         data = r.json()
         # Debug: log full response if unexpected
         if "candidates" not in data:
-            print("Gemini response: {}".format(data))
+            print("Groq response: {}".format(data))
             error_msg = data.get("error", {}).get("message", str(data))
-            return "Erreur Gemini API: {}".format(error_msg)
+            return "Erreur Groq API: {}".format(error_msg)
         candidates = data["candidates"]
         if not candidates:
-            return "Gemini: reponse vide"
+            return "Groq: reponse vide"
         content = candidates[0].get("content", {})
         parts = content.get("parts", [])
         if not parts:
-            return "Gemini: pas de contenu"
-        return parts[0].get("text", "Gemini: texte manquant")
+            return "Groq: pas de contenu"
+        return parts[0].get("text", "Groq: texte manquant")
     except Exception as e:
-        return "Erreur Gemini: {}".format(str(e))
+        return "Erreur Groq: {}".format(str(e))
 
 def format_portfolio(prices, brent):
     lines = ["\U0001f4ca <b>PORTEFEUILLE AMINE</b>\n"]
@@ -285,7 +285,7 @@ def handle_commands():
                         "/help - Cette aide\n\n"
                         "\u23f0 Briefings auto: 9h15, 17h30, 22h00\n"
                         "\U0001f514 Alertes stops: toutes les 30min\n"
-                        "\U0001f916 IA: Google Gemini (gratuit)"
+                        "\U0001f916 IA: Groq LLaMA (gratuit)"
                     )
         except Exception as e:
             print("Erreur cmd: {}".format(e))
@@ -295,7 +295,7 @@ def main():
     print("AMINE INTEL BOT (Groq) - Demarrage")
     send_telegram(
         "\U0001f916 <b>AMINE INTEL BOT - GROQ</b>\n\n"
-        "\u2705 IA: Google Gemini gratuit\n"
+        "\u2705 IA: Groq LLaMA gratuit\n"
         "\u23f0 Briefings: 9h15, 17h30, 22h00\n"
         "\U0001f514 Alertes: toutes les 30min\n\n"
         "Tape /help pour les commandes\n"
@@ -307,7 +307,7 @@ def main():
     schedule.every(30).minutes.do(check_alerts)
     t = threading.Thread(target=handle_commands, daemon=True)
     t.start()
-    print("Bot actif avec Gemini...")
+    print("Bot actif avec Groq LLaMA...")
     while True:
         schedule.run_pending()
         time.sleep(60)
