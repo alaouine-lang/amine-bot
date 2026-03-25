@@ -8,7 +8,7 @@ from datetime import datetime
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8688782085:AAFKvXMCClaeKBt-Yd4paRQJi6YBIH0GUxY")
 CHAT_ID = os.environ.get("CHAT_ID", "8654742500")
-GROQ_KEY = os.environ.get("GROQ_KEY", "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")
+GROQ_KEY = os.environ.get("GROQ_API_KEY", "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")
 
 PORTFOLIO = {
     "TTE.PA":  {"name": "TotalEnergies", "parts": 233, "entry": 72.70, "stop": 75.95, "target": 85.00, "currency": "EUR"},
