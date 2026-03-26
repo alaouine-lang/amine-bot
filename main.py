@@ -11,17 +11,17 @@ CHAT_ID = os.environ.get("CHAT_ID", "8654742500")
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 
 PORTFOLIO = {
-    "TTE.PA":  {"name": "TotalEnergies", "parts": 233, "entry": 72.70, "stop": 75.95, "target": 85.00, "currency": "EUR"},
-    "SHEL.AS": {"name": "Shell",         "parts": 645, "entry": 39.48, "stop": 37.50, "target": 44.00, "currency": "EUR"},
-    "INSW":    {"name": "Int Seaways",   "parts": 171, "entry": 71.80, "stop": 66.00, "target": 82.00, "currency": "USD"},
-    "EXV1.DE": {"name": "EXV1 Banques",  "parts": 445, "entry": 33.78, "stop": 30.00, "target": 36.00, "currency": "EUR"},
-    "NVDA":    {"name": "NVIDIA",        "parts": 81,  "entry": 185.0, "stop": 170.0, "target": 210.0, "currency": "USD"},
-    "PLTR":    {"name": "Palantir",      "parts": 8,   "entry": 154.0, "stop": 156.0, "target": 175.0, "currency": "USD"},
+    "SHEL.AS": {"name": "Shell",        "parts": 645, "entry": 39.48, "stop": 37.50, "target": 47.00, "currency": "EUR"},
+    "EXV1.DE": {"name": "EXV1 Banques", "parts": 445, "entry": 33.78, "stop": 30.00, "target": 36.00, "currency": "EUR"},
+    "NVDA":    {"name": "NVIDIA",       "parts": 81,  "entry": 185.0, "stop": 175.0, "target": 210.0, "currency": "USD"},
+    "PLTR":    {"name": "Palantir",     "parts": 8,   "entry": 154.0, "stop": 156.0, "target": 175.0, "currency": "USD"},
+    "GDX":     {"name": "GDX Or",      "parts": 8,   "entry": 82.0,  "stop": 72.00, "target": 95.00, "currency": "USD"},
+    "ITA":     {"name": "ITA Defense", "parts": 9,   "entry": 220.0, "stop": 200.0, "target": 260.0, "currency": "USD"},
+    "CCJ":     {"name": "Cameco",      "parts": 5,   "entry": 105.0, "stop": 90.00, "target": 130.0, "currency": "USD"},
 }
 
 EVENTS = [
-    {"date": "26/03/2026", "label": "AGO IAM Maroc Telecom",   "action": "Dividende IAM"},
-    {"date": "29/04/2026", "label": "Resultats TotalEnergies", "action": "Vendre 1/3 TTE a l annonce"},
+    {"date": "29/04/2026", "label": "Resultats TotalEnergies", "action": "Surveiller secteur energie"},
     {"date": "30/04/2026", "label": "FOMC Decision taux",      "action": "Adapter selon decision Fed"},
     {"date": "07/05/2026", "label": "Resultats Shell",         "action": "Vendre 1/3 si >45 EUR"},
     {"date": "27/05/2026", "label": "Resultats NVIDIA",        "action": "Vendre si +20%"},
@@ -79,22 +79,32 @@ def get_days_until(date_str):
 
 def analyze_with_groq(prompt):
     if not GROQ_KEY:
-        return "Clé Groq manquante — ajoute GROQ_KEY dans Railway Variables"
-    try:url = "https://api.groq.com/openai/v1/chat/completions"
-        headehheaders = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
-body = {"model": "llama3-8b-8192", "messages": [{"role": "user", "content": prompt}], "max_tokens": 600}
-r = requests.post(url, headers=headers, json=body, timeout=30)
-data = r.json()
-        # Debug: log full response if unexpected
-        if "candidates" not in data:
-            print("Groq response: {}".format(data))
+        return "Cle Groq manquante — ajoute GROQ_API_KEY dans Railway Variables"
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": "Bearer " + GROQ_KEY,
+            "Content-Type": "application/json"
+        }
+        body = {
+            "model": "llama3-8b-8192",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 600
+        }
+        r = requests.post(url, headers=headers, json=body, timeout=30)
+        data = r.json()
+        if "choices" not in data:
             error_msg = data.get("error", {}).get("message", str(data))
             return "Erreur Groq API: {}".format(error_msg)
-        candidates = data["candidates"]
         return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        return "Erreur Groq: {}".format(str(e))
+
+def format_portfolio(prices, brent):
+    lines = ["\U0001f4ca <b>PORTEFEUILLE AMINE</b>\n"]
     if brent:
         pct = round(((brent - 72.48) / 72.48) * 100, 1)
-        lines.append("\U0001f6e2\ufe0f Brent: <b>$" + str(brent) + "</b> (" + str(pct) + "% depuis guerre)\n")
+        lines.append("\U0001f6e2 Brent: <b>$" + str(brent) + "</b> (" + str(pct) + "% depuis guerre)\n")
     lines.append("-----------------")
     for ticker, info in PORTFOLIO.items():
         pd = prices.get(ticker, {})
@@ -163,7 +173,7 @@ def build_prompt(prices, brent, news, mode):
     elif mode == "alert":
         return context + "ALERTE URGENTE - 3 lignes max: Que s est-il passe? Risque? Action MAINTENANT?"
     else:
-        return context + "Scan geopolitique Iran 5 points: 1-Hormuz 2-Brent direction 3-Signal SHELL 4-Signal INSW 5-Deal possible?"
+        return context + "Scan geopolitique Iran 5 points: 1-Hormuz 2-Brent direction 3-Signal Shell 4-Signal GDX 5-Deal possible?"
 
 def check_alerts():
     prices = get_prices()
@@ -253,9 +263,9 @@ def handle_commands():
                 elif text in ["/brent", "brent"]:
                     if brent:
                         pct = round(((brent - 72.48) / 72.48) * 100, 1)
-                        send_telegram("\U0001f6e2\ufe0f <b>BRENT</b>\n\nPrix: <b>$" + str(brent) + "</b>\nDepuis guerre: <b>" + str(pct) + "%</b>\nPre-guerre: $72.48")
+                        send_telegram("\U0001f6e2 <b>BRENT</b>\n\nPrix: <b>$" + str(brent) + "</b>\nDepuis guerre: <b>" + str(pct) + "%</b>\nPre-guerre: $72.48")
                     else:
-                        send_telegram("\U0001f6e2\ufe0f Brent indisponible (marche ferme)")
+                        send_telegram("\U0001f6e2 Brent indisponible (marche ferme)")
 
                 elif text in ["/help", "help", "/start", "start"]:
                     send_telegram(
