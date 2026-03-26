@@ -80,34 +80,18 @@ def get_days_until(date_str):
 def analyze_with_groq(prompt):
     if not GROQ_KEY:
         return "Clé Groq manquante — ajoute GROQ_KEY dans Railway Variables"
-    try:
-        url = "https://generativelanguage.googleapis.com/v1beta/models/groq-2.0-flash:generateContent"
-        headers = {"Content-Type": "application/json"}
-        params = {"key": GROQ_KEY}
-        body = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"maxOutputTokens": 600, "temperature": 0.7}
-        }
-        r = requests.post(url, headers=headers, params=params, json=body, timeout=30)
-        data = r.json()
+    try:url = "https://api.groq.com/openai/v1/chat/completions"
+        headehheaders = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
+body = {"model": "llama3-8b-8192", "messages": [{"role": "user", "content": prompt}], "max_tokens": 600}
+r = requests.post(url, headers=headers, json=body, timeout=30)
+data = r.json()
         # Debug: log full response if unexpected
         if "candidates" not in data:
             print("Groq response: {}".format(data))
             error_msg = data.get("error", {}).get("message", str(data))
             return "Erreur Groq API: {}".format(error_msg)
         candidates = data["candidates"]
-        if not candidates:
-            return "Groq: reponse vide"
-        content = candidates[0].get("content", {})
-        parts = content.get("parts", [])
-        if not parts:
-            return "Groq: pas de contenu"
-        return parts[0].get("text", "Groq: texte manquant")
-    except Exception as e:
-        return "Erreur Groq: {}".format(str(e))
-
-def format_portfolio(prices, brent):
-    lines = ["\U0001f4ca <b>PORTEFEUILLE AMINE</b>\n"]
+        return data["choices"][0]["message"]["content"]
     if brent:
         pct = round(((brent - 72.48) / 72.48) * 100, 1)
         lines.append("\U0001f6e2\ufe0f Brent: <b>$" + str(brent) + "</b> (" + str(pct) + "% depuis guerre)\n")
