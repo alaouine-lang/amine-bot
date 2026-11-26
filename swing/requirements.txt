@@ -1,0 +1,5 @@
+# Dépendances du système swing (séparées du bot Telegram existant)
+pandas>=2.1
+numpy>=1.26
+yfinance>=0.2.50
+pytest>=8.0

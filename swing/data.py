@@ -1,0 +1,125 @@
+"""Téléchargement des cours (Yahoo Finance via yfinance) avec cache local en CSV.
+
+Les cours sont ajustés des dividendes et des splits (auto_adjust=True), ce qui
+est nécessaire pour un backtest correct.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import time
+from pathlib import Path
+
+import pandas as pd
+
+log = logging.getLogger(__name__)
+
+DEFAULT_START = "2007-01-01"
+CACHE_MAX_AGE_HOURS = 12
+COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+
+
+def data_dir() -> Path:
+    base = os.environ.get("SWING_DATA_DIR")
+    path = Path(base) if base else Path(__file__).resolve().parent.parent / "data"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def cache_dir() -> Path:
+    path = data_dir() / "cache"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _cache_file(ticker: str) -> Path:
+    return cache_dir() / f"{ticker.replace('/', '_')}.csv"
+
+
+def _is_fresh(path: Path) -> bool:
+    if not path.exists():
+        return False
+    age_hours = (time.time() - path.stat().st_mtime) / 3600.0
+    return age_hours < CACHE_MAX_AGE_HOURS
+
+
+def _extract(raw: pd.DataFrame, ticker: str) -> pd.DataFrame | None:
+    """Extrait le DataFrame OHLCV d'un ticker du résultat de yf.download."""
+    if raw is None or raw.empty:
+        return None
+    if isinstance(raw.columns, pd.MultiIndex):
+        lvl0 = raw.columns.get_level_values(0)
+        lvl1 = raw.columns.get_level_values(1)
+        if ticker in lvl0:
+            sub = raw[ticker]
+        elif ticker in lvl1:
+            sub = raw.xs(ticker, axis=1, level=1)
+        else:
+            return None
+    else:
+        sub = raw
+    missing = [c for c in COLUMNS if c not in sub.columns]
+    if missing:
+        return None
+    sub = sub[COLUMNS].dropna(subset=["Open", "High", "Low", "Close"])
+    if sub.empty:
+        return None
+    sub.index = pd.to_datetime(sub.index).tz_localize(None)
+    sub.index.name = "Date"
+    return sub.sort_index()
+
+
+def download(tickers: list[str], start: str = DEFAULT_START, chunk_size: int = 40) -> dict[str, pd.DataFrame]:
+    """Télécharge les cours journaliers et les enregistre dans le cache."""
+    import yfinance as yf  # import tardif : les tests n'en ont pas besoin
+
+    result: dict[str, pd.DataFrame] = {}
+    for i in range(0, len(tickers), chunk_size):
+        chunk = tickers[i : i + chunk_size]
+        raw = yf.download(
+            chunk,
+            start=start,
+            auto_adjust=True,
+            group_by="ticker",
+            progress=False,
+            threads=True,
+        )
+        for t in chunk:
+            df = _extract(raw, t)
+            if df is None:
+                log.warning("Aucune donnée pour %s (ticker invalide ou retiré de la cote ?)", t)
+                continue
+            df.to_csv(_cache_file(t))
+            result[t] = df
+    return result
+
+
+def read_cached(ticker: str) -> pd.DataFrame | None:
+    path = _cache_file(ticker)
+    if not path.exists():
+        return None
+    df = pd.read_csv(path, index_col="Date", parse_dates=["Date"])
+    return df[COLUMNS].sort_index()
+
+
+def load_prices(
+    tickers: list[str],
+    start: str = DEFAULT_START,
+    refresh: bool = False,
+    offline: bool = False,
+) -> dict[str, pd.DataFrame]:
+    """Cours de chaque ticker, depuis le cache s'il est récent, sinon téléchargés.
+
+    offline=True : n'utilise que le cache, sans connexion internet.
+    """
+    stale = [] if offline else [t for t in tickers if refresh or not _is_fresh(_cache_file(t))]
+    if stale:
+        log.info("Téléchargement de %d tickers…", len(stale))
+        download(stale, start=start)
+    out: dict[str, pd.DataFrame] = {}
+    for t in tickers:
+        df = read_cached(t)
+        if df is not None and not df.empty:
+            out[t] = df
+    return out

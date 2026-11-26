@@ -6,8 +6,11 @@ import requests
 import yfinance as yf
 from datetime import datetime
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8688782085:AAFKvXMCClaeKBt-Yd4paRQJi6YBIH0GUxY")
-CHAT_ID = os.environ.get("CHAT_ID", "8654742500")
+# Secrets lus UNIQUEMENT depuis les variables d'environnement (Railway Variables ou fichier .env local)
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
+if not TELEGRAM_TOKEN or not CHAT_ID:
+    raise SystemExit("Variables TELEGRAM_TOKEN et CHAT_ID manquantes : ajoutez-les dans Railway Variables.")
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 
 PORTFOLIO = {
