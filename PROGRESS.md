@@ -110,8 +110,7 @@ Seule tendance robuste : stops plus larges (5 ATR) → Sharpe test 0,51-0,55, pe
 - [x] Telegram depuis le PC : `python -m swing telegram-test` OK (token valide, message de test envoyé) — secrets dans `.env`
 - [x] Tâche « Swing paper trading » planifiée (22h45 chaque soir), test réussi : résumé reçu sur Telegram (27/11)
 - [ ] Premier signal réel : lundi 30/11/2026 au soir (PC allumé à 22h45)
-- [ ] Bot Railway (@Amineuserinfobot) ne répond plus à /help depuis le changement de token → vérifier
-      Railway (déploiement, logs, variables TELEGRAM_TOKEN et CHAT_ID)
+- [x] Bot Railway (@Amineuserinfobot) réparé : yfinance 1.8.0 + ticker SHELL.AS, PR #1 fusionnée dans main le 27/11, /check et /help OK
 - [ ] Fin du paper trading prévue 1er décembre 2026 + 3 mois → début mars 2027 : bilan avant argent réel
 
 ## Commandes (sur le PC, dans le dossier du dépôt)
