@@ -153,8 +153,8 @@ def cmd_live(args) -> None:
     text = report.message(state)
     print(text.replace("<b>", "").replace("</b>", ""))
     if not args.no_telegram:
-        sent = send_telegram(text)
-        print("\n📨 Telegram : " + ("envoyé" if sent else "non envoyé (TELEGRAM_TOKEN / CHAT_ID absents ?)"))
+        sent, why = send_telegram(text)
+        print("\n📨 Telegram : " + ("envoyé" if sent else f"non envoyé — {why}"))
     print(f"\n📁 Fichiers du paper trading : {paper_dir()}")
 
 

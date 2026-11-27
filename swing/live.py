@@ -226,17 +226,29 @@ def run_daily(data: dict[str, pd.DataFrame], capital: float = 50_000.0, force_si
     return DailyReport(day, value, spy_value, fills, signal, targets, orders, above), state
 
 
-def send_telegram(text: str) -> bool:
-    """Envoie un message si TELEGRAM_TOKEN et CHAT_ID sont définis. Renvoie True si envoyé."""
+def send_telegram(text: str) -> tuple[bool, str]:
+    """Envoie un message Telegram. Renvoie (envoyé ?, explication)."""
     token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("CHAT_ID")
-    if not token or not chat:
-        return False
+    if not token and not chat:
+        return False, "TELEGRAM_TOKEN et CHAT_ID introuvables (fichier .env absent, mal nommé ou mal placé ?)"
+    if not token:
+        return False, "TELEGRAM_TOKEN introuvable dans le fichier .env"
+    if not chat:
+        return False, "CHAT_ID introuvable dans le fichier .env"
     import requests
 
     try:
         r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                           json={"chat_id": chat, "text": text, "parse_mode": "HTML"}, timeout=15)
-        return r.ok
     except Exception as e:  # le rapport reste disponible dans les fichiers même si Telegram échoue
-        log.warning("Envoi Telegram impossible : %s", e)
-        return False
+        return False, f"erreur réseau : {type(e).__name__}"
+    if r.ok:
+        return True, "envoyé"
+    try:
+        detail = r.json().get("description", "")
+    except ValueError:
+        detail = ""
+    hints = {401: "token refusé (ancien token révoqué ? faute de frappe ?)",
+             400: "chat ID incorrect, ou vous n'avez jamais écrit au bot",
+             403: "le bot est bloqué ou n'a pas le droit d'écrire dans cette conversation"}
+    return False, f"Telegram a répondu {r.status_code} : {hints.get(r.status_code, detail or 'erreur inconnue')}"
