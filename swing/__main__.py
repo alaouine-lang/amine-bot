@@ -181,6 +181,9 @@ def cmd_screen(args) -> None:
 
 def main(argv=None) -> None:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+    from .config import load_env
+
+    load_env()
     parser = argparse.ArgumentParser(prog="python -m swing", description="Système de swing trading")
     sub = parser.add_subparsers(dest="command", required=True)
 

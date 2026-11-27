@@ -310,3 +310,17 @@ def test_is_month_end():
 
     assert is_month_end(pd.Timestamp("2026-11-30"))
     assert not is_month_end(pd.Timestamp("2026-11-27"))
+
+
+def test_load_env_reads_file_without_overriding(tmp_path, monkeypatch):
+    from swing.config import load_env
+
+    f = tmp_path / ".env"
+    f.write_text('# commentaire\nTELEGRAM_TOKEN="123:abc"\nCHAT_ID=42\n\n', encoding="utf-8")
+    monkeypatch.delenv("TELEGRAM_TOKEN", raising=False)
+    monkeypatch.setenv("CHAT_ID", "deja_defini")
+    loaded = load_env(f)
+    import os
+    assert os.environ["TELEGRAM_TOKEN"] == "123:abc"
+    assert os.environ["CHAT_ID"] == "deja_defini"
+    assert loaded == ["TELEGRAM_TOKEN"]
