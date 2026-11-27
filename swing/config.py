@@ -49,13 +49,14 @@ def parse_env(text: str) -> dict[str, str]:
 def load_env(path: Path = ENV_FILE) -> list[str]:
     """Charge les variables du fichier .env ; renvoie les noms chargés.
 
-    Une variable déjà définie dans Windows n'est pas écrasée, SAUF si elle est vide.
+    Le fichier .env est PRIORITAIRE sur les variables Windows : c'est le réglage
+    explicite du projet (une ancienne variable Windows ne doit pas le masquer).
     """
     if not path.exists():
         return []
     loaded = []
     for key, value in parse_env(_read_text(path)).items():
-        if not os.environ.get(key):
+        if value:
             os.environ[key] = value
             loaded.append(key)
     return loaded
@@ -63,6 +64,8 @@ def load_env(path: Path = ENV_FILE) -> list[str]:
 
 def diagnose(path: Path = ENV_FILE) -> str:
     """Résumé lisible du fichier .env, sans jamais afficher les valeurs secrètes."""
+    import re
+
     if not path.exists():
         return f"Fichier introuvable : {path}"
     values = parse_env(_read_text(path))
@@ -71,8 +74,17 @@ def diagnose(path: Path = ENV_FILE) -> str:
         v = values.get(key)
         if v is None:
             lines.append(f"  {key} : absent du fichier")
-        else:
-            lines.append(f"  {key} : présent ({len(v)} caractères)")
-        if os.environ.get(key) == "" and key not in values:
-            lines.append(f"  {key} : défini VIDE dans Windows")
+            continue
+        lines.append(f"  {key} : présent ({len(v)} caractères)")
+        win = os.environ.get(key)
+        if win and win != v:
+            lines.append(f"  {key} : une AUTRE valeur existe dans Windows (le fichier .env est désormais prioritaire)")
+        if any(ord(ch) > 127 or ch.isspace() for ch in v):
+            lines.append(f"  {key} : contient un espace ou un caractère spécial invisible → à retaper")
+    tok = values.get("TELEGRAM_TOKEN")
+    if tok and not re.fullmatch(r"\d{5,}:[A-Za-z0-9_-]{30,}", tok):
+        lines.append("  TELEGRAM_TOKEN : format inattendu (attendu : chiffres, deux-points, puis lettres/chiffres)")
+    chat = values.get("CHAT_ID")
+    if chat and not re.fullmatch(r"-?\d+", chat):
+        lines.append("  CHAT_ID : format inattendu (attendu : uniquement des chiffres)")
     return "\n".join(lines)

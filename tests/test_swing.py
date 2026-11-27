@@ -322,8 +322,8 @@ def test_load_env_reads_file_without_overriding(tmp_path, monkeypatch):
     loaded = load_env(f)
     import os
     assert os.environ["TELEGRAM_TOKEN"] == "123:abc"
-    assert os.environ["CHAT_ID"] == "deja_defini"
-    assert loaded == ["TELEGRAM_TOKEN"]
+    assert os.environ["CHAT_ID"] == "42"  # le fichier .env est prioritaire
+    assert loaded == ["TELEGRAM_TOKEN", "CHAT_ID"]
 
 
 def test_load_env_handles_utf16_and_empty_existing(tmp_path, monkeypatch):

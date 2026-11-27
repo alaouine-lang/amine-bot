@@ -158,6 +158,35 @@ def cmd_live(args) -> None:
     print(f"\n📁 Fichiers du paper trading : {paper_dir()}")
 
 
+def cmd_telegram_test(args) -> None:
+    import os
+
+    import requests
+
+    from .config import diagnose
+
+    print(diagnose())
+    token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("CHAT_ID")
+    if not token:
+        sys.exit("\nAucun token chargé.")
+    try:
+        me = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=15)
+    except Exception as e:
+        sys.exit(f"\nErreur réseau : {type(e).__name__}")
+    if me.status_code == 401:
+        sys.exit(
+            "\n❌ Telegram refuse ce token (401). Il a été révoqué ou contient une erreur."
+            "\n   Dans BotFather : /mybots → votre bot → API Token, copiez le token affiché et remplacez-le dans .env."
+        )
+    if not me.ok:
+        sys.exit(f"\n❌ Réponse inattendue de Telegram : {me.status_code}")
+    print(f"\n✅ Token valide : bot @{me.json()['result'].get('username')}")
+    from .live import send_telegram
+
+    ok, why = send_telegram("✅ Test du système swing : la connexion Telegram fonctionne.")
+    print("📨 Message de test : " + ("envoyé" if ok else why))
+
+
 def cmd_screen(args) -> None:
     data = _load(args)
     strategy = get_strategy(args.strategy)
@@ -224,6 +253,9 @@ def main(argv=None) -> None:
     p.add_argument("--force-signal", action="store_true", help="Calculer les cibles même hors fin de mois")
     p.add_argument("--no-telegram", action="store_true")
     p.set_defaults(func=cmd_live)
+
+    p = sub.add_parser("telegram-test", help="Vérifier le token et le chat ID Telegram (sans les afficher)")
+    p.set_defaults(func=cmd_telegram_test)
 
     p = sub.add_parser("screen", help="Signaux d'entrée de la dernière séance")
     common(p)
