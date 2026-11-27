@@ -87,11 +87,32 @@ def download(tickers: list[str], start: str = DEFAULT_START, chunk_size: int = 4
         )
         for t in chunk:
             df = _extract(raw, t)
+            if df is not None:
+                df.to_csv(_cache_file(t))
+                result[t] = df
+
+    # Nouvelles tentatives, une action à la fois et sans parallélisme : les échecs
+    # « database is locked » de yfinance (fréquents sous Windows) viennent du téléchargement parallèle.
+    failed = [t for t in tickers if t not in result]
+    for attempt in range(2):
+        if not failed:
+            break
+        time.sleep(2)
+        still = []
+        for t in failed:
+            raw = yf.download(t, start=start, auto_adjust=True, group_by="ticker", progress=False, threads=False)
+            df = _extract(raw, t)
             if df is None:
-                log.warning("Aucune donnée pour %s (ticker invalide ou retiré de la cote ?)", t)
+                still.append(t)
                 continue
             df.to_csv(_cache_file(t))
             result[t] = df
+        failed = still
+    for t in failed:
+        if _cache_file(t).exists():
+            log.warning("Téléchargement raté pour %s : utilisation des données en cache (plus anciennes)", t)
+        else:
+            log.warning("Aucune donnée pour %s (ticker invalide, retiré de la cote, ou erreur réseau)", t)
     return result
 
 
