@@ -6,12 +6,15 @@ import requests
 import yfinance as yf
 from datetime import datetime
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8688782085:AAFKvXMCClaeKBt-Yd4paRQJi6YBIH0GUxY")
-CHAT_ID = os.environ.get("CHAT_ID", "8654742500")
+# Secrets lus UNIQUEMENT depuis les variables d'environnement (Railway Variables ou fichier .env local)
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
+if not TELEGRAM_TOKEN or not CHAT_ID:
+    raise SystemExit("Variables TELEGRAM_TOKEN et CHAT_ID manquantes : ajoutez-les dans Railway Variables.")
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 
 PORTFOLIO = {
-    "SHEL.AS": {"name": "Shell",        "parts": 645, "entry": 39.48, "stop": 37.50, "target": 47.00, "currency": "EUR"},
+    "SHELL.AS": {"name": "Shell",        "parts": 645, "entry": 39.48, "stop": 37.50, "target": 47.00, "currency": "EUR"},
     "EXV1.DE": {"name": "EXV1 Banques", "parts": 445, "entry": 33.78, "stop": 30.00, "target": 36.00, "currency": "EUR"},
     "NVDA":    {"name": "NVIDIA",       "parts": 81,  "entry": 185.0, "stop": 175.0, "target": 210.0, "currency": "USD"},
     "PLTR":    {"name": "Palantir",     "parts": 8,   "entry": 154.0, "stop": 156.0, "target": 175.0, "currency": "USD"},
