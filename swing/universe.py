@@ -67,3 +67,28 @@ def category_of(ticker: str) -> str:
             if ticker in tickers:
                 return name
     return "unknown"
+
+
+# Familles d'ETF fortement corrélés entre eux (pour limiter la concentration)
+ETF_FAMILIES = {
+    "us_large": ["SPY", "DIA", "QQQ", "XLK", "SMH", "XLC"],
+    "us_small": ["IWM", "KRE"],
+    "financials": ["XLF"],
+    "energy": ["XLE", "XOP", "USO", "UNG"],
+    "health": ["XLV", "IBB", "XBI"],
+    "industrials": ["XLI", "ITA"],
+    "consumer": ["XLY", "XLP", "XHB"],
+    "defensive_eq": ["XLU", "XLRE"],
+    "materials": ["XLB", "CPER", "URA"],
+    "precious_metals": ["GLD", "SLV", "GDX", "GDXJ", "PPLT"],
+    "agri_broad": ["DBA", "DBC"],
+    "bonds": ["TLT", "IEF", "HYG"],
+}
+
+
+def group_of(ticker: str) -> str:
+    """Famille de corrélation : famille d'ETF, sinon secteur de l'action."""
+    for name, tickers in ETF_FAMILIES.items():
+        if ticker in tickers:
+            return name
+    return category_of(ticker)

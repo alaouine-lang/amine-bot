@@ -2,6 +2,12 @@
 
 Ce fichier permet de reprendre le travail à tout moment. Il est mis à jour à chaque étape.
 
+## Critères de réussite (réponses du 27/11/2026)
+- Objectif : **mieux que le S&P 500, moins risqué** (rendement ≥ SPY - 2 pts, Sharpe > SPY).
+- Perte max acceptable : **-20 %**.
+- Capital du système : **25 000 à 75 000 €** (tests à 50 000).
+- Outils autorisés : vente à découvert, ETF inverses, levier.
+
 ## Cahier des charges
 - **Marchés :** actions US, ETF sectoriels, matières premières (via ETF).
 - **Horizon :** swing trading, positions de quelques jours à quelques semaines.
@@ -72,6 +78,22 @@ Seule tendance robuste : stops plus larges (5 ATR) → Sharpe test 0,51-0,55, pe
 2. Structure **cœur + satellites** : un cœur indiciel (SPY) quand le marché est haussier,
    et des positions swing en satellite. Objectif : suivre les hausses ET protéger dans les baisses.
 3. Comparer tout cela au SPY en rendement ET en risque (perte max, Sharpe).
+
+## Tests du 27/11/2026 (≈ 100 variantes) → voir `research/2026-11-27_synthese.md`
+- Nouveau moteur de rotation de portefeuille (`swing/portfolio.py`) : levier, inverse, vente à découvert, ciblage de volatilité, limite par famille.
+- Banc d'essai (`swing/research.py`) + scripts dans `research/scripts/`.
+- Nettoyage des points aberrants Yahoo (ex. CPER 04/12/2014).
+- **Meilleur candidat : 50 % cœur SPY avec filtre de tendance + 50 % rotation mensuelle de 5 actions
+  (1 par secteur, volatilité ciblée 18 %).** Test 2021-2026 : 12,7 %/an, Sharpe 0,87, perte max -19,4 %
+  (SPY : 13,4 %, 0,83, -24,5 %). 2008 : +10 % (SPY -36 %). Point faible : fin 2018 -24,5 %.
+- Réserves : biais du survivant sur la poche actions (résultats surestimés), tests multiples.
+- Écartés : swing à signaux seul, rotation ETF, vente à découvert, ETF inverse, levier.
+
+## Questions en attente pour l'utilisateur
+- Peut-il acheter des ETF américains (SPY) sur IBKR, ou seulement des ETF européens (UCITS) ?
+- Résidence fiscale / type de compte (impact des ventes fréquentes).
+- Disponibilité pour passer les ordres en fin de mois.
+- Durée de paper trading acceptée avant l'argent réel.
 
 ## Commandes (sur le PC, dans le dossier du dépôt)
 ```powershell

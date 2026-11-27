@@ -95,12 +95,36 @@ def download(tickers: list[str], start: str = DEFAULT_START, chunk_size: int = 4
     return result
 
 
+def clean_spikes(df: pd.DataFrame, threshold: float = 0.2, revert_tol: float = 0.05) -> pd.DataFrame:
+    """Corrige les points aberrants d'un jour (erreurs de données Yahoo).
+
+    Un point est aberrant si le cours bouge de plus de `threshold` dans un sens puis
+    revient le lendemain presque au niveau de l'avant-veille (écart < `revert_tol`).
+    La ligne est alors remplacée par celle de la veille. Les vrais krachs, qui ne
+    reviennent pas le lendemain, ne sont pas touchés.
+    """
+    c = df["Close"]
+    r_in = c / c.shift(1) - 1.0
+    r_out = c.shift(-1) / c - 1.0
+    back = (c.shift(-1) / c.shift(1) - 1.0).abs()
+    spike = (r_in.abs() > threshold) & (r_out.abs() > threshold) & (r_in * r_out < 0) & (back < revert_tol)
+    if not spike.any():
+        return df
+    out = df.copy()
+    for d in spike[spike].index:
+        i = out.index.get_loc(d)
+        # la séance aberrante est remplacée par une séance plate au cours de clôture de la veille
+        out.iloc[i, out.columns.get_indexer(["Open", "High", "Low", "Close"])] = [out["Close"].iloc[i - 1]] * 4
+        log.info("Point aberrant corrigé : %s", d.date())
+    return out
+
+
 def read_cached(ticker: str) -> pd.DataFrame | None:
     path = _cache_file(ticker)
     if not path.exists():
         return None
     df = pd.read_csv(path, index_col="Date", parse_dates=["Date"])
-    return df[COLUMNS].sort_index()
+    return clean_spikes(df[COLUMNS].sort_index())
 
 
 def load_prices(

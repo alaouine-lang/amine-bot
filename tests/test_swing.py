@@ -209,3 +209,61 @@ def test_optimizer_ranks_on_training_only():
     finite = [s for s in sharpes if s == s]
     assert finite == sorted(finite, reverse=True)
     assert all(c.train.get("fin", split) <= split for c in cands)
+
+
+# ---------- Moteur de rotation ----------
+
+def _flat_data(n=400):
+    idx = pd.bdate_range("2015-01-01", periods=n)
+    up = 100 * np.exp(np.linspace(0, 0.5, n))
+    flat = np.full(n, 50.0)
+    def df(c):
+        return pd.DataFrame({"Open": c, "High": c, "Low": c, "Close": c, "Volume": 1e6}, index=idx)
+    return {"SPY": df(up), "UP": df(up * 0.5), "FLAT": df(flat), "TLT": df(flat), "IEF": df(flat), "GLD": df(flat)}
+
+
+def test_rotation_picks_rising_asset_and_costs_apply():
+    from swing.portfolio import CostConfig, RotationConfig, run_rotation
+
+    data = _flat_data()
+    cfg = RotationConfig(risk_assets=["UP", "FLAT"], top_k=1)
+    res = run_rotation(data, cfg, CostConfig(initial_capital=10_000, trade_cost_bps=0.0))
+    w = res.weights.iloc[-1]
+    assert w["UP"] == pytest.approx(1.0, abs=1e-6)
+    assert w["FLAT"] == pytest.approx(0.0)
+    paid = run_rotation(data, cfg, CostConfig(initial_capital=10_000, trade_cost_bps=50.0))
+    assert paid.equity.iloc[-1] < res.equity.iloc[-1]
+
+
+def test_leverage_costs_margin_interest():
+    from swing.portfolio import CostConfig, RotationConfig, run_rotation
+
+    data = _flat_data()
+    # actif plat avec levier 2 : le capital doit baisser du coût du crédit
+    for t in ("UP", "SPY"):
+        data[t] = data["FLAT"].copy()
+    cfg = RotationConfig(risk_assets=["FLAT"], top_k=1, abs_momentum=False, market_filter=False, max_leverage=2.0)
+    res = run_rotation(data, cfg, CostConfig(initial_capital=10_000, trade_cost_bps=0.0, margin_rate=0.10))
+    assert res.equity.iloc[-1] < 10_000
+
+
+def test_inverse_moves_opposite_to_spy():
+    from swing.portfolio import INVERSE, build_panel
+
+    data = _flat_data(50)
+    _, close = build_panel(data, inverse_fee=0.0)
+    r_spy = close["SPY"].pct_change().iloc[1:]
+    r_inv = close[INVERSE].pct_change().iloc[1:]
+    assert np.allclose(r_inv, -r_spy, atol=1e-9)
+
+
+def test_clean_spikes_fixes_one_day_error_but_keeps_real_crash():
+    from swing.data import clean_spikes
+
+    idx = pd.bdate_range("2020-01-01", periods=6)
+    spike = pd.DataFrame({c: [20, 20, 13, 20, 20, 20] for c in ["Open", "High", "Low", "Close"]}, index=idx, dtype=float)
+    spike["Volume"] = 1.0
+    assert clean_spikes(spike)["Close"].iloc[2] == pytest.approx(20.0)
+    crash = spike.copy()
+    crash[["Open", "High", "Low", "Close"]] = [[20] * 4, [20] * 4, [13] * 4, [13] * 4, [13] * 4, [13] * 4]
+    assert clean_spikes(crash)["Close"].iloc[2] == pytest.approx(13.0)
