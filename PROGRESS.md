@@ -89,11 +89,11 @@ Seule tendance robuste : stops plus larges (5 ATR) → Sharpe test 0,51-0,55, pe
 - Réserves : biais du survivant sur la poche actions (résultats surestimés), tests multiples.
 - Écartés : swing à signaux seul, rotation ETF, vente à découvert, ETF inverse, levier.
 
-## Questions en attente pour l'utilisateur
-- Peut-il acheter des ETF américains (SPY) sur IBKR, ou seulement des ETF européens (UCITS) ?
-- Résidence fiscale / type de compte (impact des ventes fréquentes).
-- Disponibilité pour passer les ordres en fin de mois.
-- Durée de paper trading acceptée avant l'argent réel.
+## Contraintes pratiques (réponses du 27/11/2026)
+- ETF américains (SPY, QQQ, GLD…) : **accessibles** sur son compte IBKR.
+- Résidence fiscale : **hors de France** (fiscalité non modélisée dans les tests).
+- Passage des ordres : **le système prépare les ordres dans IBKR, l'utilisateur valide**.
+- Paper trading : **3 mois** avant l'argent réel (≈ 3 rééquilibrages mensuels ; c'est peu, à garder en tête).
 
 ## Commandes (sur le PC, dans le dossier du dépôt)
 ```powershell
