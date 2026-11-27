@@ -16,18 +16,63 @@ from pathlib import Path
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
+def _read_text(path: Path) -> str:
+    """Lit le fichier quel que soit l'encodage choisi par le Bloc-notes (UTF-8, UTF-16, ANSI)."""
+    data = path.read_bytes()
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16")
+    for enc in ("utf-8-sig", "cp1252"):
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("latin-1")
+
+
+def parse_env(text: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip().lstrip("\ufeff")
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.lower().startswith("export "):
+            line = line[7:]
+        if line.startswith("$env:"):
+            line = line[5:]
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
 def load_env(path: Path = ENV_FILE) -> list[str]:
-    """Charge les variables du fichier .env ; renvoie les noms chargés."""
+    """Charge les variables du fichier .env ; renvoie les noms chargés.
+
+    Une variable déjà définie dans Windows n'est pas écrasée, SAUF si elle est vide.
+    """
     if not path.exists():
         return []
     loaded = []
-    for raw in path.read_text(encoding="utf-8-sig").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key, value = key.strip(), value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
+    for key, value in parse_env(_read_text(path)).items():
+        if not os.environ.get(key):
             os.environ[key] = value
             loaded.append(key)
     return loaded
+
+
+def diagnose(path: Path = ENV_FILE) -> str:
+    """Résumé lisible du fichier .env, sans jamais afficher les valeurs secrètes."""
+    if not path.exists():
+        return f"Fichier introuvable : {path}"
+    values = parse_env(_read_text(path))
+    lines = [f"Fichier : {path}", f"Variables reconnues : {', '.join(values) or 'AUCUNE'}"]
+    for key in ("TELEGRAM_TOKEN", "CHAT_ID"):
+        v = values.get(key)
+        if v is None:
+            lines.append(f"  {key} : absent du fichier")
+        else:
+            lines.append(f"  {key} : présent ({len(v)} caractères)")
+        if os.environ.get(key) == "" and key not in values:
+            lines.append(f"  {key} : défini VIDE dans Windows")
+    return "\n".join(lines)

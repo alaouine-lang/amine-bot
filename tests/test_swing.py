@@ -324,3 +324,16 @@ def test_load_env_reads_file_without_overriding(tmp_path, monkeypatch):
     assert os.environ["TELEGRAM_TOKEN"] == "123:abc"
     assert os.environ["CHAT_ID"] == "deja_defini"
     assert loaded == ["TELEGRAM_TOKEN"]
+
+
+def test_load_env_handles_utf16_and_empty_existing(tmp_path, monkeypatch):
+    from swing.config import load_env
+    import os
+
+    f = tmp_path / ".env"
+    f.write_bytes("TELEGRAM_TOKEN=1:x\r\nCHAT_ID = 7\r\n".encode("utf-16"))
+    monkeypatch.setenv("TELEGRAM_TOKEN", "")
+    monkeypatch.delenv("CHAT_ID", raising=False)
+    load_env(f)
+    assert os.environ["TELEGRAM_TOKEN"] == "1:x"
+    assert os.environ["CHAT_ID"] == "7"
