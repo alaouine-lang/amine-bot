@@ -106,7 +106,11 @@ Seule tendance robuste : stops plus larges (5 ATR) → Sharpe test 0,51-0,55, pe
   sont tous sous leur MM200 ou en baisse (vérifié, conforme aux règles).
 - Préparation des ordres dans IBKR : prévue APRÈS le paper trading (via le connecteur IBKR de Claude,
   ordres à valider par l'utilisateur).
-- [ ] Installer le dépôt sur le PC et planifier `swing_live.bat`
+- [x] Dépôt installé sur le PC, `python -m swing live` fonctionne (portefeuille fictif démarré, 50 000 $ cash)
+- [ ] Telegram depuis le PC : fichier `.env` lu (token 46 car., chat ID 10 car.) mais Telegram répond 401.
+      Prochaine étape : `git pull` puis `python -m swing telegram-test` (diagnostic sans afficher le token).
+      Rappel : `setx` refusé par Windows → secrets dans `.env` (exclu de git).
+- [ ] Planifier `swing_live.bat` dans le Planificateur de tâches (22h45 chaque soir)
 - [ ] Premier signal réel : lundi 30/11/2026 au soir
 
 ## Commandes (sur le PC, dans le dossier du dépôt)
