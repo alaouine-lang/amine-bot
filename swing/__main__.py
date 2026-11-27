@@ -151,10 +151,14 @@ def cmd_live(args) -> None:
     data = _load(args)
     report, state = run_daily(data, capital=args.capital, force_signal=args.force_signal)
     text = report.message(state)
-    print(text.replace("<b>", "").replace("</b>", ""))
+    # Telegram d'abord : un problème d'affichage local ne doit jamais empêcher l'envoi
+    status = None
     if not args.no_telegram:
         sent, why = send_telegram(text)
-        print("\n📨 Telegram : " + ("envoyé" if sent else f"non envoyé — {why}"))
+        status = "envoyé" if sent else f"non envoyé — {why}"
+    print(text.replace("<b>", "").replace("</b>", ""))
+    if status:
+        print("\n📨 Telegram : " + status)
     print(f"\n📁 Fichiers du paper trading : {paper_dir()}")
 
 
@@ -208,7 +212,17 @@ def cmd_screen(args) -> None:
     print("\nCe sont des signaux quantitatifs à valider : la décision finale vous appartient.")
 
 
+def _utf8_console() -> None:
+    """Évite le plantage sur les emojis quand Windows écrit dans un fichier (encodage cp1252)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv=None) -> None:
+    _utf8_console()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
     from .config import load_env
 
