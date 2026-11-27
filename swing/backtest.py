@@ -77,6 +77,7 @@ class BacktestResult:
     equity: pd.Series
     trades: list[Trade]
     benchmark: pd.Series | None = None
+    exposure: pd.Series | None = None   # part du capital investie chaque jour (0 à 1)
 
     def trades_frame(self) -> pd.DataFrame:
         rows = []
@@ -87,7 +88,7 @@ class BacktestResult:
         return pd.DataFrame(rows)
 
     def metrics(self, start=None, end=None) -> dict:
-        return compute_metrics(self.equity, self.trades, start=start, end=end)
+        return compute_metrics(self.equity, self.trades, start=start, end=end, exposure=self.exposure)
 
     def benchmark_metrics(self, start=None, end=None) -> dict:
         if self.benchmark is None:
@@ -147,6 +148,7 @@ def run_backtest(
     last_close: dict[str, float] = {}
     trades: list[Trade] = []
     equity = np.empty(len(calendar))
+    invested = np.empty(len(calendar))
     prev_equity = cfg.initial_capital
 
     def close_position(ticker: str, price: float, day: pd.Timestamp, reason: str) -> None:
@@ -231,6 +233,7 @@ def run_backtest(
                 last_close[ticker] = c
             value += pos.trade.shares * last_close.get(ticker, pos.trade.entry_price)
         equity[i] = value
+        invested[i] = (value - cash) / value if value > 0 else 0.0
         prev_equity = value
 
     # Positions encore ouvertes : clôturées au dernier cours pour le bilan
@@ -241,10 +244,13 @@ def run_backtest(
     eq = pd.Series(equity, index=calendar, name=strategy.name)
     bench = bench_close.reindex(calendar).ffill()
     bench = bench / bench.iloc[0] * cfg.initial_capital
-    return BacktestResult(strategy.name, cfg, eq, trades, bench.rename(benchmark))
+    expo = pd.Series(invested, index=calendar, name="exposure")
+    return BacktestResult(strategy.name, cfg, eq, trades, bench.rename(benchmark), expo)
 
 
-def compute_metrics(equity: pd.Series, trades: list[Trade], start=None, end=None) -> dict:
+def compute_metrics(
+    equity: pd.Series, trades: list[Trade], start=None, end=None, exposure: pd.Series | None = None
+) -> dict:
     eq = equity.dropna()
     if start:
         eq = eq[eq.index >= pd.Timestamp(start)]
@@ -271,6 +277,8 @@ def compute_metrics(equity: pd.Series, trades: list[Trade], start=None, end=None
         "max_drawdown": max_dd,
         "calmar": cagr / abs(max_dd) if max_dd < 0 else float("nan"),
     }
+    if exposure is not None:
+        m["exposition_moyenne"] = float(exposure.reindex(eq.index).mean())
 
     closed = [
         t for t in trades

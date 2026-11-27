@@ -29,8 +29,8 @@ Ce fichier permet de reprendre le travail à tout moment. Il est mis à jour à 
 - [x] Screener du soir + journal des signaux (`swing/screener.py`)
 - [x] 14 tests automatiques (`tests/test_swing.py`)
 - [x] Token Telegram retiré du code (`main.py`)
-- [ ] Mesurer l'exposition (part du capital investie) et le stop de momentum (1000 sorties sur 1078 par le stop)
-- [ ] Optimisation des paramètres sur la période d'entraînement uniquement (walk-forward)
+- [x] Exposition mesurée : momentum ~80 % investi, pullback ~59 % → l'argent qui dort n'est PAS la cause principale
+- [x] Optimiseur sur la période d'entraînement uniquement : `python -m swing optimize --strategy momentum`
 - [ ] Stratégies supplémentaires : force relative sectorielle, rotation, sortie sur objectif
 - [ ] Module macro FRED (régime croissance/inflation) — nécessite une clé FRED gratuite
 
@@ -55,6 +55,24 @@ Rappel : l'univers actuel crée un biais du survivant qui rend ces chiffres opti
 
 Situation de marché au 25/11/2026 : SPY (716,7) sous sa MM200 (730,8) → filtre baissier actif, aucun signal.
 
+## Diagnostic du 27/11/2026
+**Optimisation momentum** (24 réglages, classés sur 2012-2020) : le meilleur en entraînement
+(Sharpe 1,02) tombe à 0,24 en test → **surapprentissage**. Aucun réglage ne bat le SPY en test.
+Seule tendance robuste : stops plus larges (5 ATR) → Sharpe test 0,51-0,55, perte max -15 à -19 %.
+
+**Année par année** (momentum, stop 5 ATR, 12 positions, vs SPY) :
+- Protège dans les baisses : 2022 -3,6 % (SPY -18,2 %), 2018 -0,5 % (SPY -4,6 %).
+- Gros retard dans les hausses : 2019 +11,8 % (SPY +31,2 %), 2023 +4,8 % (+26,2 %), 2024 +2,9 % (+24,9 %).
+- Hypothèse : beaucoup d'allers-retours coupés par les stops et retard sur les hausses
+  très concentrées sur quelques géants (à vérifier).
+
+**Prochaine étape proposée :**
+1. Stratégie de **rotation** : chaque mois, détenir les N actifs les plus forts sur 6-12 mois,
+   avec un repli vers obligations/or/cash si le marché est baissier (« dual momentum »).
+2. Structure **cœur + satellites** : un cœur indiciel (SPY) quand le marché est haussier,
+   et des positions swing en satellite. Objectif : suivre les hausses ET protéger dans les baisses.
+3. Comparer tout cela au SPY en rendement ET en risque (perte max, Sharpe).
+
 ## Commandes (sur le PC, dans le dossier du dépôt)
 ```powershell
 py -3.13 -m venv .venv
@@ -62,6 +80,7 @@ py -3.13 -m venv .venv
 pip install -r swing\requirements.txt
 python -m swing download
 python -m swing backtest --strategy momentum --start 2012-01-01 --split 2021-01-01
+python -m swing optimize --strategy momentum
 python -m swing screen --strategy momentum --capital 130000
 python -m pytest -q tests
 ```

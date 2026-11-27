@@ -195,3 +195,17 @@ def test_screener_returns_valid_proposals():
     for p in proposals:
         assert p.stop < p.close
         assert p.position_value <= 20_000 + 1e-6
+
+
+def test_optimizer_ranks_on_training_only():
+    from swing.optimize import optimize
+
+    data = trending_market(n=700, seed=5)
+    split = data["SPY"].index[450].date().isoformat()
+    grid = {"stop_atr_mult": [2.0, 4.0], "cfg.max_positions": [1, 2]}
+    cands = optimize(data, "momentum", split=split, start=None, grid=grid, min_trades=0)
+    assert len(cands) == 4
+    sharpes = [c.train.get("sharpe", float("-inf")) for c in cands]
+    finite = [s for s in sharpes if s == s]
+    assert finite == sorted(finite, reverse=True)
+    assert all(c.train.get("fin", split) <= split for c in cands)

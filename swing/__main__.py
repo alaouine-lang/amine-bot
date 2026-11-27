@@ -20,7 +20,7 @@ from .data import DEFAULT_START, data_dir, load_prices
 from .screener import append_to_journal, screen
 from .strategies import STRATEGIES, get_strategy
 
-PCT_KEYS = {"rendement_total", "cagr", "volatilite", "max_drawdown", "taux_reussite", "gain_moyen", "perte_moyenne"}
+PCT_KEYS = {"exposition_moyenne", "rendement_total", "cagr", "volatilite", "max_drawdown", "taux_reussite", "gain_moyen", "perte_moyenne"}
 LABELS = {
     "debut": "Début",
     "fin": "Fin",
@@ -30,6 +30,7 @@ LABELS = {
     "sharpe": "Ratio de Sharpe",
     "max_drawdown": "Perte max (drawdown)",
     "calmar": "Ratio de Calmar",
+    "exposition_moyenne": "Capital investi (moyenne)",
     "nb_trades": "Nombre de trades",
     "taux_reussite": "Taux de réussite",
     "gain_moyen": "Gain moyen (gagnants)",
@@ -117,6 +118,33 @@ def cmd_backtest(args) -> None:
         print(f"\n💾 Résultats enregistrés dans {out}")
 
 
+def cmd_optimize(args) -> None:
+    from .optimize import optimize
+
+    data = _load(args)
+    cfg = BacktestConfig(initial_capital=args.capital, risk_per_trade=args.risk)
+
+    def progress(n, total):
+        print(f"\r  combinaison {n}/{total}", end="", flush=True)
+
+    print(f"Optimisation de {args.strategy} sur {args.start} → {args.split} (entraînement uniquement)…")
+    cands = optimize(data, args.strategy, split=args.split, start=args.start, base_config=cfg, progress=progress)
+    print("\n")
+    header = f"{'#':>3}  {'Paramètres':<62}{'Sharpe ent.':>12}{'CAGR ent.':>11}{'Sharpe test':>13}{'CAGR test':>11}{'DD test':>10}"
+    print(header)
+    print("-" * len(header))
+    for i, c in enumerate(cands[: args.top], 1):
+        params = ", ".join(f"{k.replace('cfg.', '')}={v}" for k, v in c.params.items())
+        print(
+            f"{i:>3}  {params:<62}{_fmt('sharpe', c.train.get('sharpe')):>12}{_fmt('cagr', c.train.get('cagr')):>11}"
+            f"{_fmt('sharpe', c.test.get('sharpe')):>13}{_fmt('cagr', c.test.get('cagr')):>11}{_fmt('max_drawdown', c.test.get('max_drawdown')):>10}"
+        )
+    print(
+        "\nLe classement se fait UNIQUEMENT sur l'entraînement. Les colonnes « test » montrent"
+        "\nce que chaque réglage aurait donné ensuite, sur des années jamais vues."
+    )
+
+
 def cmd_screen(args) -> None:
     data = _load(args)
     strategy = get_strategy(args.strategy)
@@ -163,6 +191,16 @@ def main(argv=None) -> None:
     p.add_argument("--max-positions", type=int, default=8)
     p.add_argument("--save", action="store_true", help="Enregistrer trades et courbe de capital en CSV")
     p.set_defaults(func=cmd_backtest)
+
+    p = sub.add_parser("optimize", help="Chercher les meilleurs réglages sur la période d'entraînement")
+    common(p)
+    p.add_argument("--strategy", choices=list(STRATEGIES), default="momentum")
+    p.add_argument("--start", default="2012-01-01")
+    p.add_argument("--split", default="2021-01-01")
+    p.add_argument("--capital", type=float, default=100_000.0)
+    p.add_argument("--risk", type=float, default=0.01)
+    p.add_argument("--top", type=int, default=10)
+    p.set_defaults(func=cmd_optimize)
 
     p = sub.add_parser("screen", help="Signaux d'entrée de la dernière séance")
     common(p)
