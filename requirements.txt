@@ -1,5 +1,5 @@
 anthropic==0.25.0
-yfinance==0.2.38
+yfinance==1.8.0
 requests==2.31.0
 schedule==1.2.1
 httpx==0.24.1
