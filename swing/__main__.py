@@ -161,6 +161,22 @@ def cmd_live(args) -> None:
         print("\n📨 Telegram : " + status)
     print(f"\n📁 Fichiers du paper trading : {paper_dir()}")
 
+    # Agents IA (mode observation) : seulement si activés dans .env
+    if not args.no_ai:
+        from .ai.pipeline import enabled, run_ai
+        from .portfolio import build_panel
+
+        ok, why = enabled()
+        if not ok:
+            print(f"\n🤖 {why}")
+        else:
+            _, close = build_panel(data)
+            ai_text = run_ai(close, report.day, state.positions, report.targets, report.signal)
+            print("\n" + ai_text.replace("<b>", "").replace("</b>", ""))
+            if ai_text and not args.no_telegram:
+                sent, why = send_telegram(ai_text)
+                print("\n📨 Telegram (IA) : " + ("envoyé" if sent else f"non envoyé — {why}"))
+
 
 def cmd_telegram_test(args) -> None:
     import os
@@ -189,6 +205,32 @@ def cmd_telegram_test(args) -> None:
 
     ok, why = send_telegram("✅ Test du système swing : la connexion Telegram fonctionne.")
     print("📨 Message de test : " + ("envoyé" if ok else why))
+
+
+def cmd_ai_test(args) -> None:
+    """Un petit appel réel à chaque modèle utilisé, pour vérifier clé, crédits et réglages."""
+    import os
+
+    from .ai.llm import LLM, MODEL_COMMITTEE, MODEL_MACRO, MODEL_NEWS, spent_this_month, strict_object
+    from .ai.pipeline import explain_error
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        sys.exit("ANTHROPIC_API_KEY absente du fichier .env")
+    schema = strict_object({"reponse": {"type": "string"}})
+    llm = LLM()
+    models = [MODEL_NEWS, MODEL_MACRO] + ([MODEL_COMMITTEE] if args.with_opus else [])
+    ok_all = True
+    for model in models:
+        try:
+            r = llm.call_json("test", model, "Réponds en un mot.", "Dis bonjour.", schema, effort="low",
+                              max_tokens=2000, est_cost=0.01)
+            print(f"✅ {model} : {r['reponse']!r}")
+        except Exception as exc:
+            ok_all = False
+            print(f"❌ {model} : {explain_error(exc)}")
+    print(f"\nCoût total des tests : {spent_this_month():.4f} $ ce mois")
+    if ok_all:
+        print("Tout fonctionne : ajoutez AI_ENABLED=1 dans .env pour activer les agents chaque soir.")
 
 
 def cmd_screen(args) -> None:
@@ -266,7 +308,12 @@ def main(argv=None) -> None:
     p.add_argument("--capital", type=float, default=50_000.0, help="Capital fictif de départ (1re exécution)")
     p.add_argument("--force-signal", action="store_true", help="Calculer les cibles même hors fin de mois")
     p.add_argument("--no-telegram", action="store_true")
+    p.add_argument("--no-ai", action="store_true", help="Ne pas lancer les agents IA ce soir")
     p.set_defaults(func=cmd_live)
+
+    p = sub.add_parser("ai-test", help="Vérifier la clé API Claude et les modèles (coût < 0,01 $)")
+    p.add_argument("--with-opus", action="store_true", help="Tester aussi le modèle du comité (Opus)")
+    p.set_defaults(func=cmd_ai_test)
 
     p = sub.add_parser("telegram-test", help="Vérifier le token et le chat ID Telegram (sans les afficher)")
     p.set_defaults(func=cmd_telegram_test)

@@ -40,7 +40,23 @@ Ce fichier permet de reprendre le travail à tout moment. Il est mis à jour à 
 - [ ] Stratégies supplémentaires : force relative sectorielle, rotation, sortie sur objectif
 - [ ] Module macro FRED (régime croissance/inflation) — nécessite une clé FRED gratuite
 
-### Phase 2 : agents IA — à faire
+### Phase 2 : agents IA — construite le 27/11/2026, en MODE OBSERVATION
+Les agents n'influencent PAS les ordres : leurs avis sont journalisés dans `data/ai/` et seront
+évalués après le paper trading (les positions « vetoées » par le comité ont-elles moins bien fait ?).
+- `swing/ai/llm.py` : appels Claude avec JSON imposé (output_config.format), effort réglé par agent,
+  repli serveur automatique pour Opus/Sonnet (`fallbacks="default"`), suivi des coûts (`data/ai/usage.csv`),
+  **plafond mensuel** `AI_MONTHLY_BUDGET` (défaut 150 $).
+- `swing/ai/news.py` : agent Actualités (Haiku 5.5), titres Google News RSS, 1 appel par ticker
+  (positions + cibles + 10 meilleurs candidats + SPY), vocabulaire fermé de 30 thèmes.
+- `swing/ai/themes.py` : signaux faibles sans IA (score z ≥ 2 et ≥ 2× la moyenne, 10 jours d'historique minimum).
+- `swing/ai/macro.py` : agent Macro (Sonnet 5.5), le vendredi, à partir de chiffres calculés + titres macro.
+- `swing/ai/committee.py` : Comité (Opus 5.5) le soir du signal mensuel : confirmer / alerte / veto suggéré.
+- `swing/ai/pipeline.py` : lancé automatiquement par `python -m swing live` si `AI_ENABLED=1`.
+- `python -m swing ai-test` : vérification réelle de la clé et des modèles (coût < 0,01 $).
+- Tests avec un faux client Claude (32 tests au total). **Aucun appel réel testé depuis la session cloud**
+  (pas de clé API ici) → première vérification à faire sur le PC avec `ai-test`.
+- Coût estimé : actualités ≈ 0,01 $/jour, macro ≈ 0,1-0,3 $/semaine, comité ≈ 0,3-1 $/mois → bien sous 150 $.
+- [ ] Sur le PC : ANTHROPIC_API_KEY dans .env, `python -m swing ai-test`, puis AI_ENABLED=1
 ### Phase 3 : paper trading + journal de performance — à faire
 ### Phase 4 : passage en réel (si les mesures sont bonnes) — à faire
 

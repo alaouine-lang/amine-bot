@@ -226,6 +226,26 @@ def run_daily(data: dict[str, pd.DataFrame], capital: float = 50_000.0, force_si
     return DailyReport(day, value, spy_value, fills, signal, targets, orders, above), state
 
 
+def split_message(text: str, limit: int = 3900) -> list[str]:
+    """Telegram limite un message à 4096 caractères : on découpe sur les retours à la ligne."""
+    chunks, cur = [], ""
+    for line in text.split("\n"):
+        while len(line) > limit:
+            if cur:
+                chunks.append(cur)
+                cur = ""
+            chunks.append(line[:limit])
+            line = line[limit:]
+        if len(cur) + len(line) + 1 > limit:
+            chunks.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    if cur:
+        chunks.append(cur)
+    return chunks or [""]
+
+
 def send_telegram(text: str) -> tuple[bool, str]:
     """Envoie un message Telegram. Renvoie (envoyé ?, explication)."""
     token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("CHAT_ID")
@@ -237,11 +257,14 @@ def send_telegram(text: str) -> tuple[bool, str]:
         return False, "CHAT_ID introuvable dans le fichier .env"
     import requests
 
-    try:
-        r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                          json={"chat_id": chat, "text": text, "parse_mode": "HTML"}, timeout=15)
-    except Exception as e:  # le rapport reste disponible dans les fichiers même si Telegram échoue
-        return False, f"erreur réseau : {type(e).__name__}"
+    for chunk in split_message(text):
+        try:
+            r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                              json={"chat_id": chat, "text": chunk, "parse_mode": "HTML"}, timeout=15)
+        except Exception as e:  # le rapport reste disponible dans les fichiers même si Telegram échoue
+            return False, f"erreur réseau : {type(e).__name__}"
+        if not r.ok:
+            break
     if r.ok:
         return True, "envoyé"
     try:
