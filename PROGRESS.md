@@ -95,6 +95,20 @@ Seule tendance robuste : stops plus larges (5 ATR) → Sharpe test 0,51-0,55, pe
 - Passage des ordres : **le système prépare les ordres dans IBKR, l'utilisateur valide**.
 - Paper trading : **3 mois** avant l'argent réel (≈ 3 rééquilibrages mensuels ; c'est peu, à garder en tête).
 
+## Paper trading (à partir du 30/11/2026)
+- Module `swing/live.py` + commande `python -m swing live` (à lancer chaque soir après la clôture US).
+- Utilise exactement le même calcul que le backtest (`target_weights`).
+- Signal le dernier jour de bourse du mois, exécution simulée à l'ouverture suivante, actions entières, frais 6 pb.
+- État dans `data/paper/` : `state.json`, `trades.csv`, `equity.csv`, `orders_AAAA-MM-JJ.json`, `log.txt`.
+- Résumé Telegram si `TELEGRAM_TOKEN` et `CHAT_ID` sont définis sur le PC.
+- `swing_live.bat` : script pour le Planificateur de tâches Windows.
+- Essai du 27/11 sur données réelles (signal forcé au 25/11) : **100 % cash** — SPY, TLT, IEF et GLD
+  sont tous sous leur MM200 ou en baisse (vérifié, conforme aux règles).
+- Préparation des ordres dans IBKR : prévue APRÈS le paper trading (via le connecteur IBKR de Claude,
+  ordres à valider par l'utilisateur).
+- [ ] Installer le dépôt sur le PC et planifier `swing_live.bat`
+- [ ] Premier signal réel : lundi 30/11/2026 au soir
+
 ## Commandes (sur le PC, dans le dossier du dépôt)
 ```powershell
 py -3.13 -m venv .venv
@@ -104,6 +118,7 @@ python -m swing download
 python -m swing backtest --strategy momentum --start 2012-01-01 --split 2021-01-01
 python -m swing optimize --strategy momentum
 python -m swing screen --strategy momentum --capital 130000
+python -m swing live --capital 50000
 python -m pytest -q tests
 ```
 

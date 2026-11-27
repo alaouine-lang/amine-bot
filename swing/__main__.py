@@ -145,6 +145,19 @@ def cmd_optimize(args) -> None:
     )
 
 
+def cmd_live(args) -> None:
+    from .live import paper_dir, run_daily, send_telegram
+
+    data = _load(args)
+    report, state = run_daily(data, capital=args.capital, force_signal=args.force_signal)
+    text = report.message(state)
+    print(text.replace("<b>", "").replace("</b>", ""))
+    if not args.no_telegram:
+        sent = send_telegram(text)
+        print("\n📨 Telegram : " + ("envoyé" if sent else "non envoyé (TELEGRAM_TOKEN / CHAT_ID absents ?)"))
+    print(f"\n📁 Fichiers du paper trading : {paper_dir()}")
+
+
 def cmd_screen(args) -> None:
     data = _load(args)
     strategy = get_strategy(args.strategy)
@@ -201,6 +214,13 @@ def main(argv=None) -> None:
     p.add_argument("--risk", type=float, default=0.01)
     p.add_argument("--top", type=int, default=10)
     p.set_defaults(func=cmd_optimize)
+
+    p = sub.add_parser("live", help="Paper trading quotidien de la stratégie retenue (à lancer chaque soir)")
+    common(p)
+    p.add_argument("--capital", type=float, default=50_000.0, help="Capital fictif de départ (1re exécution)")
+    p.add_argument("--force-signal", action="store_true", help="Calculer les cibles même hors fin de mois")
+    p.add_argument("--no-telegram", action="store_true")
+    p.set_defaults(func=cmd_live)
 
     p = sub.add_parser("screen", help="Signaux d'entrée de la dernière séance")
     common(p)

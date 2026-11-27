@@ -267,3 +267,46 @@ def test_clean_spikes_fixes_one_day_error_but_keeps_real_crash():
     crash = spike.copy()
     crash[["Open", "High", "Low", "Close"]] = [[20] * 4, [20] * 4, [13] * 4, [13] * 4, [13] * 4, [13] * 4]
     assert clean_spikes(crash)["Close"].iloc[2] == pytest.approx(13.0)
+
+
+# ---------- Paper trading ----------
+
+def test_live_signal_then_fill_next_open(tmp_path, monkeypatch):
+    from swing import live
+
+    monkeypatch.setenv("SWING_DATA_DIR", str(tmp_path))
+    rng = np.random.default_rng(7)
+    idx = pd.bdate_range("2019-01-01", "2021-01-29")
+    n = len(idx)
+    def df(drift, seed):
+        r = np.random.default_rng(seed).normal(drift, 0.01, n)
+        c = 100 * np.exp(np.cumsum(r))
+        return pd.DataFrame({"Open": c * 0.999, "High": c * 1.01, "Low": c * 0.99, "Close": c, "Volume": 1e6}, index=idx)
+    data = {"SPY": df(0.001, 1), "TLT": df(0.0, 2), "IEF": df(0.0, 3), "GLD": df(0.0, 4)}
+    for k, t in enumerate(live.STOCKS[:12]):
+        data[t] = df(0.0015, 10 + k)
+
+    # Jour de signal : dernier jour ouvré de décembre 2020
+    sig_day = pd.Timestamp("2020-12-31")
+    upto = {t: d.loc[:sig_day] for t, d in data.items()}
+    rep, state = live.run_daily(upto, capital=50_000)
+    assert rep.signal and rep.targets
+    assert sum(rep.targets.values()) <= 1.0 + 1e-6
+    assert state.pending is not None and not state.positions
+
+    # Séance suivante : les ordres sont exécutés à l'ouverture
+    nxt = {t: d.loc[:"2021-01-04"] for t, d in data.items()}
+    rep2, state2 = live.run_daily(nxt, capital=50_000)
+    assert rep2.fills and state2.pending is None
+    assert state2.positions
+    first = rep2.fills[0]
+    assert first["prix"] == pytest.approx(data[first["ticker"]].at[pd.Timestamp("2021-01-04"), "Open"] * (1 + 6e-4), rel=1e-6)
+    assert state2.cash >= -1e-6  # jamais de découvert sans levier
+    assert not rep2.signal  # pas de nouveau signal en début de mois
+
+
+def test_is_month_end():
+    from swing.live import is_month_end
+
+    assert is_month_end(pd.Timestamp("2026-11-30"))
+    assert not is_month_end(pd.Timestamp("2026-11-27"))
