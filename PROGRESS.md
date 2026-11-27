@@ -67,6 +67,6 @@ python -m pytest -q tests
 ```
 
 ## Actions en attente côté utilisateur
-- [ ] **Révoquer l'ancien token Telegram** via @BotFather (il reste visible dans l'historique git), puis créer un nouveau token.
-- [ ] Ajouter `TELEGRAM_TOKEN` et `CHAT_ID` dans les variables Railway (le bot refuse de démarrer sans).
+- [x] Ancien token Telegram révoqué via @BotFather, nouveau token créé (27/11/2026).
+- [x] `TELEGRAM_TOKEN` et `CHAT_ID` ajoutés dans les variables Railway (27/11/2026).
 - [ ] Créer une clé FRED gratuite (pour le module macro).
